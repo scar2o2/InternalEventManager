@@ -45,7 +45,7 @@ npm install
 npm run dev
 ```
 
-The frontend expects the backend at `http://localhost:8080`.
+The frontend expects the backend at `http://localhost:8081`.
 
 ## Admin analytics
 
