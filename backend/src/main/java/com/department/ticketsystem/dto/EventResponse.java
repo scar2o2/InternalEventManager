@@ -10,7 +10,12 @@ public record EventResponse(
         LocalDateTime dateTime,
         String venue,
         BigDecimal ticketPrice,
+        BigDecimal currentTicketPrice,
+        BigDecimal pricingMultiplier,
         Integer availableTickets,
-        Integer totalTickets
+        Integer totalTickets,
+        Integer soldTickets,
+        long heldSeats,
+        long waitlistCount
 ) {
 }

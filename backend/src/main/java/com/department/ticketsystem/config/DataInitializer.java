@@ -2,10 +2,15 @@ package com.department.ticketsystem.config;
 
 import com.department.ticketsystem.model.Event;
 import com.department.ticketsystem.model.Role;
+import com.department.ticketsystem.model.Seat;
+import com.department.ticketsystem.model.SeatStatus;
 import com.department.ticketsystem.model.User;
 import com.department.ticketsystem.repository.EventRepository;
+import com.department.ticketsystem.repository.SeatRepository;
 import com.department.ticketsystem.repository.UserRepository;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.time.LocalDateTime;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -16,11 +21,14 @@ public class DataInitializer implements CommandLineRunner {
 
     private final UserRepository userRepository;
     private final EventRepository eventRepository;
+    private final SeatRepository seatRepository;
     private final PasswordEncoder passwordEncoder;
 
-    public DataInitializer(UserRepository userRepository, EventRepository eventRepository, PasswordEncoder passwordEncoder) {
+    public DataInitializer(UserRepository userRepository, EventRepository eventRepository,
+                           SeatRepository seatRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.eventRepository = eventRepository;
+        this.seatRepository = seatRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -53,7 +61,8 @@ public class DataInitializer implements CommandLineRunner {
             expo.setTicketPrice(BigDecimal.valueOf(150));
             expo.setAvailableTickets(120);
             expo.setTotalTickets(120);
-            eventRepository.save(expo);
+            expo = eventRepository.save(expo);
+            seedSeats(expo);
 
             Event summit = new Event();
             summit.setName("Faculty Research Summit");
@@ -63,7 +72,20 @@ public class DataInitializer implements CommandLineRunner {
             summit.setTicketPrice(BigDecimal.valueOf(250));
             summit.setAvailableTickets(80);
             summit.setTotalTickets(80);
-            eventRepository.save(summit);
+            summit = eventRepository.save(summit);
+            seedSeats(summit);
         }
+    }
+
+    private void seedSeats(Event event) {
+        List<Seat> seats = new ArrayList<>();
+        for (int index = 1; index <= event.getTotalTickets(); index++) {
+            Seat seat = new Seat();
+            seat.setEvent(event);
+            seat.setSeatNumber(String.valueOf((char) ('A' + ((index - 1) / 10))) + (((index - 1) % 10) + 1));
+            seat.setStatus(SeatStatus.AVAILABLE);
+            seats.add(seat);
+        }
+        seatRepository.saveAll(seats);
     }
 }

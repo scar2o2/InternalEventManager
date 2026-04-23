@@ -5,8 +5,12 @@ import com.department.ticketsystem.dto.BookingResponse;
 import com.department.ticketsystem.service.BookingService;
 import jakarta.validation.Valid;
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,8 +31,61 @@ public class BookingController {
         return bookingService.createBooking(principal.getName(), request);
     }
 
+    @PostMapping("/hold")
+    public Map<String, Object> holdSeats(@RequestBody Map<String, Object> request, Principal principal) {
+        return bookingService.holdSeats(
+                principal.getName(),
+                toLong(request.get("eventId")),
+                toLongList(request.get("seatIds")));
+    }
+
+    @PostMapping("/waitlist")
+    public Map<String, String> joinWaitlist(@RequestBody Map<String, Object> request, Principal principal) {
+        return Map.of("message", bookingService.joinWaitlist(
+                principal.getName(),
+                toLong(request.get("eventId")),
+                toInteger(request.get("tickets"))));
+    }
+
+    @PatchMapping("/{id}/cancel")
+    public BookingResponse cancelBooking(@PathVariable Long id, Principal principal) {
+        return bookingService.cancelBooking(principal.getName(), id);
+    }
+
     @GetMapping("/me")
     public List<BookingResponse> getMyBookings(Principal principal) {
         return bookingService.getUserBookings(principal.getName());
+    }
+
+    private Long toLong(Object value) {
+        if (value == null) {
+            throw new IllegalArgumentException("eventId is required");
+        }
+        return ((Number) value).longValue();
+    }
+
+    private Integer toInteger(Object value) {
+        if (value == null) {
+            throw new IllegalArgumentException("tickets is required");
+        }
+        return ((Number) value).intValue();
+    }
+
+    private List<Long> toLongList(Object value) {
+        if (!(value instanceof List<?>)) {
+            throw new IllegalArgumentException("seatIds is required");
+        }
+        List<?> items = (List<?>) value;
+        if (items.isEmpty()) {
+            throw new IllegalArgumentException("seatIds is required");
+        }
+        List<Long> seatIds = new ArrayList<>();
+        for (Object item : items) {
+            if (!(item instanceof Number)) {
+                throw new IllegalArgumentException("seatIds must contain numeric values");
+            }
+            seatIds.add(((Number) item).longValue());
+        }
+        return seatIds;
     }
 }

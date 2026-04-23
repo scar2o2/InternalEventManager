@@ -28,11 +28,21 @@ export default function EventDetailPage() {
       <div className="detail-grid">
         <span>Date: {new Date(event.dateTime).toLocaleString()}</span>
         <span>Venue: {event.venue}</span>
-        <span>Price: Rs. {event.ticketPrice}</span>
+        <span>Base price: Rs. {event.ticketPrice}</span>
+        <span>Current price: Rs. {event.currentTicketPrice}</span>
         <span>Available: {event.availableTickets}</span>
+        <span>Held right now: {event.heldSeats}</span>
+        <span>Sold seats: {event.soldTickets}</span>
+        <span>Waitlist size: {event.waitlistCount}</span>
+      </div>
+      <div className="summary-box">
+        <span>Pricing multiplier: {event.pricingMultiplier}x</span>
+        <span>Dynamic pricing updates when demand rises and in the final 48 hours.</span>
       </div>
       <p>This booking experience is limited to authenticated student and faculty users only.</p>
-      <Link className="brutal-button" to={`/events/${event.id}/book`}>Continue to Booking</Link>
+      <div className="card-actions">
+        <Link className="brutal-button" to={`/events/${event.id}/book`}>Continue to Booking</Link>
+      </div>
     </section>
   );
 }

@@ -8,8 +8,10 @@ export default function EventCard({ event, canBook }) {
       <div className="meta-grid">
         <span>{new Date(event.dateTime).toLocaleString()}</span>
         <span>{event.venue}</span>
-        <span>Rs. {event.ticketPrice}</span>
+        <span>Base: Rs. {event.ticketPrice}</span>
+        <span>Live price: Rs. {event.currentTicketPrice}</span>
         <span>{event.availableTickets} tickets left</span>
+        <span>{event.waitlistCount} on waitlist</span>
       </div>
       <div className="card-actions">
         <Link className="brutal-button secondary" to={`/events/${event.id}`}>

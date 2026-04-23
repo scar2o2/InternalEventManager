@@ -1,8 +1,10 @@
 package com.department.ticketsystem.controller;
 
+import com.department.ticketsystem.dto.BookingStatsResponse;
 import com.department.ticketsystem.dto.DashboardResponse;
 import com.department.ticketsystem.dto.EventRequest;
 import com.department.ticketsystem.dto.EventResponse;
+import com.department.ticketsystem.dto.RevenuePointResponse;
 import com.department.ticketsystem.service.AdminService;
 import com.department.ticketsystem.service.EventService;
 import jakarta.validation.Valid;
@@ -15,6 +17,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -31,6 +36,24 @@ public class AdminController {
     @GetMapping("/dashboard")
     public DashboardResponse getDashboard() {
         return adminService.getDashboardData();
+    }
+
+    @GetMapping("/revenue")
+    public List<RevenuePointResponse> getRevenue() {
+        return adminService.getRevenueData();
+    }
+
+    @GetMapping("/bookings/stats")
+    public BookingStatsResponse getBookingStats() {
+        return adminService.getBookingStats();
+    }
+
+    @GetMapping("/export-report/{eventId}")
+    public ResponseEntity<byte[]> exportReport(@PathVariable Long eventId) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=event-report-" + eventId + ".pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(adminService.exportReport(eventId));
     }
 
     @GetMapping("/events")

@@ -1,6 +1,8 @@
 package com.department.ticketsystem.model;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -28,20 +30,31 @@ public class Booking {
 
     private Integer tickets;
 
+    private BigDecimal pricePerTicket;
+
     private BigDecimal totalAmount;
 
     private LocalDateTime bookingDate;
 
+    @Enumerated(EnumType.STRING)
+    private BookingStatus status;
+
+    private String seatNumbers;
+
     public Booking() {
     }
 
-    public Booking(Long id, User user, Event event, Integer tickets, BigDecimal totalAmount, LocalDateTime bookingDate) {
+    public Booking(Long id, User user, Event event, Integer tickets, BigDecimal pricePerTicket, BigDecimal totalAmount,
+                   LocalDateTime bookingDate, BookingStatus status, String seatNumbers) {
         this.id = id;
         this.user = user;
         this.event = event;
         this.tickets = tickets;
+        this.pricePerTicket = pricePerTicket;
         this.totalAmount = totalAmount;
         this.bookingDate = bookingDate;
+        this.status = status;
+        this.seatNumbers = seatNumbers;
     }
 
     public Long getId() {
@@ -84,11 +97,35 @@ public class Booking {
         this.totalAmount = totalAmount;
     }
 
+    public BigDecimal getPricePerTicket() {
+        return pricePerTicket;
+    }
+
+    public void setPricePerTicket(BigDecimal pricePerTicket) {
+        this.pricePerTicket = pricePerTicket;
+    }
+
     public LocalDateTime getBookingDate() {
         return bookingDate;
     }
 
     public void setBookingDate(LocalDateTime bookingDate) {
         this.bookingDate = bookingDate;
+    }
+
+    public BookingStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(BookingStatus status) {
+        this.status = status;
+    }
+
+    public String getSeatNumbers() {
+        return seatNumbers;
+    }
+
+    public void setSeatNumbers(String seatNumbers) {
+        this.seatNumbers = seatNumbers;
     }
 }

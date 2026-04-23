@@ -9,13 +9,7 @@ export default function MyBookingsPage() {
   const [bookings, setBookings] = useState([]);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (location.state?.message) {
-      showToast({ title: "Booking updated", message: location.state.message, variant: "success" });
-    }
-  }, [location.state, showToast]);
-
-  useEffect(() => {
+  const loadBookings = () => {
     api.get("/bookings/me")
       .then(({ data }) => setBookings(data))
       .catch((err) => {
@@ -23,7 +17,28 @@ export default function MyBookingsPage() {
         setError(message);
         showToast({ title: "Could not load bookings", message, variant: "error" });
       });
+  };
+
+  useEffect(() => {
+    if (location.state?.message) {
+      showToast({ title: "Booking updated", message: location.state.message, variant: "success" });
+    }
+  }, [location.state, showToast]);
+
+  useEffect(() => {
+    loadBookings();
   }, [showToast]);
+
+  const cancelBooking = async (bookingId) => {
+    try {
+      await api.patch(`/bookings/${bookingId}/cancel`);
+      showToast({ title: "Booking cancelled", message: "Your seats have been released.", variant: "info" });
+      loadBookings();
+    } catch (err) {
+      const message = err.response?.data?.message || "Unable to cancel booking.";
+      showToast({ title: "Cancellation failed", message, variant: "error" });
+    }
+  };
 
   return (
     <section>
@@ -37,12 +52,22 @@ export default function MyBookingsPage() {
       <div className="list-stack">
         {bookings.map((booking) => (
           <article key={booking.id} className="brutal-card list-item">
-            <h3>{booking.eventName}</h3>
-            <div className="meta-grid">
-              <span>Tickets: {booking.tickets}</span>
-              <span>Total: Rs. {booking.totalAmount}</span>
-              <span>Booked: {new Date(booking.bookingDate).toLocaleString()}</span>
+            <div>
+              <h3>{booking.eventName}</h3>
+              <div className="meta-grid">
+                <span>Tickets: {booking.tickets}</span>
+                <span>Seat(s): {booking.seatNumbers.join(", ") || "Auto-assigned"}</span>
+                <span>Price per ticket: Rs. {booking.pricePerTicket}</span>
+                <span>Total: Rs. {booking.totalAmount}</span>
+                <span>Status: {booking.status}</span>
+                <span>Booked: {new Date(booking.bookingDate).toLocaleString()}</span>
+              </div>
             </div>
+            {booking.status === "CONFIRMED" ? (
+              <button type="button" className="brutal-button danger" onClick={() => cancelBooking(booking.id)}>
+                Cancel Booking
+              </button>
+            ) : null}
           </article>
         ))}
       </div>

@@ -2,28 +2,61 @@ package com.department.ticketsystem.service;
 
 import com.department.ticketsystem.dto.EventRequest;
 import com.department.ticketsystem.dto.EventResponse;
+import com.department.ticketsystem.model.Booking;
+import com.department.ticketsystem.model.BookingStatus;
 import com.department.ticketsystem.model.Event;
+import com.department.ticketsystem.model.NotificationType;
+import com.department.ticketsystem.model.Seat;
+import com.department.ticketsystem.model.SeatStatus;
+import com.department.ticketsystem.model.WaitlistStatus;
+import com.department.ticketsystem.repository.BookingRepository;
 import com.department.ticketsystem.repository.EventRepository;
+import com.department.ticketsystem.repository.SeatRepository;
+import com.department.ticketsystem.repository.WaitlistRepository;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class EventService {
 
     private final EventRepository eventRepository;
+    private final BookingRepository bookingRepository;
+    private final SeatRepository seatRepository;
+    private final WaitlistRepository waitlistRepository;
+    private final PricingService pricingService;
+    private final NotificationService notificationService;
 
-    public EventService(EventRepository eventRepository) {
+    public EventService(EventRepository eventRepository, BookingRepository bookingRepository, SeatRepository seatRepository,
+                        WaitlistRepository waitlistRepository, PricingService pricingService,
+                        NotificationService notificationService) {
         this.eventRepository = eventRepository;
+        this.bookingRepository = bookingRepository;
+        this.seatRepository = seatRepository;
+        this.waitlistRepository = waitlistRepository;
+        this.pricingService = pricingService;
+        this.notificationService = notificationService;
     }
 
+    @Transactional
     public List<EventResponse> getAllEvents() {
-        return eventRepository.findAll().stream().map(this::toResponse).toList();
+        return eventRepository.findAll().stream().map(event -> {
+            ensureSeatsForEvent(event);
+            refreshAvailableTickets(event);
+            return toResponse(event);
+        }).toList();
     }
 
+    @Transactional
     public EventResponse getEvent(Long id) {
-        return toResponse(getEventEntity(id));
+        Event event = getEventEntity(id);
+        ensureSeatsForEvent(event);
+        refreshAvailableTickets(event);
+        return toResponse(event);
     }
 
+    @Transactional
     public EventResponse createEvent(EventRequest request) {
         Event event = new Event();
         event.setName(request.name());
@@ -33,13 +66,19 @@ public class EventService {
         event.setTicketPrice(request.ticketPrice());
         event.setAvailableTickets(request.availableTickets());
         event.setTotalTickets(request.availableTickets());
-        return toResponse(eventRepository.save(event));
+        Event saved = eventRepository.save(event);
+        ensureSeatsForEvent(saved);
+        refreshAvailableTickets(saved);
+        return toResponse(saved);
     }
 
+    @Transactional
     public EventResponse updateEvent(Long id, EventRequest request) {
         Event event = getEventEntity(id);
-        int bookedTickets = event.getTotalTickets() - event.getAvailableTickets();
-        if (request.availableTickets() < bookedTickets) {
+        ensureSeatsForEvent(event);
+        long lockedSeats = seatRepository.countByEventAndStatus(event, SeatStatus.BOOKED)
+                + seatRepository.countByEventAndStatus(event, SeatStatus.HELD);
+        if (request.availableTickets() < lockedSeats) {
             throw new IllegalArgumentException("Capacity cannot be less than booked tickets");
         }
         event.setName(request.name());
@@ -48,12 +87,32 @@ public class EventService {
         event.setVenue(request.venue());
         event.setTicketPrice(request.ticketPrice());
         event.setTotalTickets(request.availableTickets());
-        event.setAvailableTickets(request.availableTickets() - bookedTickets);
-        return toResponse(eventRepository.save(event));
+        Event saved = eventRepository.save(event);
+        syncSeatCapacity(saved);
+        refreshAvailableTickets(saved);
+        return toResponse(saved);
     }
 
+    @Transactional
     public void deleteEvent(Long id) {
-        eventRepository.deleteById(id);
+        Event event = getEventEntity(id);
+
+        List<Booking> bookings = bookingRepository.findByEventOrderByBookingDateDesc(event);
+        List<Booking> confirmedBookings = bookings.stream()
+                .filter(booking -> booking.getStatus() == BookingStatus.CONFIRMED)
+                .toList();
+
+        for (Booking booking : confirmedBookings) {
+            notificationService.createNotification(
+                    booking.getUser(),
+                    NotificationType.EVENT_UPDATE,
+                    buildCancellationMessage(event, booking));
+        }
+
+        waitlistRepository.deleteByEvent(event);
+        seatRepository.deleteByEvent(event);
+        bookingRepository.deleteByEvent(event);
+        eventRepository.delete(event);
     }
 
     public Event getEventEntity(Long id) {
@@ -61,7 +120,27 @@ public class EventService {
                 .orElseThrow(() -> new IllegalArgumentException("Event not found"));
     }
 
+    public List<Event> getEventEntities() {
+        return eventRepository.findAll();
+    }
+
+    @Transactional
+    public List<com.department.ticketsystem.dto.SeatResponse> getEventSeats(Long id, String email) {
+        Event event = getEventEntity(id);
+        ensureSeatsForEvent(event);
+        return seatRepository.findByEventOrderBySeatNumberAsc(event).stream()
+                .map(seat -> new com.department.ticketsystem.dto.SeatResponse(
+                        seat.getId(),
+                        seat.getSeatNumber(),
+                        seat.getStatus().name(),
+                        seat.getHeldBy() != null && seat.getHeldBy().getEmail().equals(email)))
+                .toList();
+    }
+
     public EventResponse toResponse(Event event) {
+        long heldSeats = seatRepository.countByEventAndStatus(event, SeatStatus.HELD);
+        int availableTickets = refreshAvailableTickets(event);
+        int sellableAvailableSeats = availableTickets + (int) heldSeats;
         return new EventResponse(
                 event.getId(),
                 event.getName(),
@@ -69,7 +148,73 @@ public class EventService {
                 event.getDateTime(),
                 event.getVenue(),
                 event.getTicketPrice(),
-                event.getAvailableTickets(),
-                event.getTotalTickets());
+                pricingService.calculateCurrentPrice(event, sellableAvailableSeats),
+                pricingService.calculateMultiplier(event, sellableAvailableSeats),
+                availableTickets,
+                event.getTotalTickets(),
+                event.getTotalTickets() - availableTickets - (int) heldSeats,
+                heldSeats,
+                waitlistRepository.countByEventAndStatus(event, WaitlistStatus.PENDING));
+    }
+
+    @Transactional
+    public void ensureSeatsForEvent(Event event) {
+        List<Seat> existingSeats = seatRepository.findByEventOrderBySeatNumberAsc(event);
+        if (existingSeats.size() >= event.getTotalTickets()) {
+            return;
+        }
+        List<Seat> newSeats = new ArrayList<>();
+        for (int index = existingSeats.size() + 1; index <= event.getTotalTickets(); index++) {
+            Seat seat = new Seat();
+            seat.setEvent(event);
+            seat.setSeatNumber(buildSeatNumber(index));
+            seat.setStatus(SeatStatus.AVAILABLE);
+            newSeats.add(seat);
+        }
+        seatRepository.saveAll(newSeats);
+    }
+
+    @Transactional
+    public void syncSeatCapacity(Event event) {
+        ensureSeatsForEvent(event);
+        List<Seat> seats = seatRepository.findByEventOrderBySeatNumberAsc(event);
+        if (seats.size() <= event.getTotalTickets()) {
+            return;
+        }
+        long removable = seats.stream().filter(seat -> seat.getStatus() == SeatStatus.AVAILABLE).count();
+        int overflow = seats.size() - event.getTotalTickets();
+        if (removable < overflow) {
+            throw new IllegalArgumentException("Reduce held or booked seats before lowering capacity");
+        }
+        List<Seat> toDelete = seats.stream()
+                .filter(seat -> seat.getStatus() == SeatStatus.AVAILABLE)
+                .sorted((left, right) -> right.getSeatNumber().compareTo(left.getSeatNumber()))
+                .limit(overflow)
+                .toList();
+        seatRepository.deleteAll(toDelete);
+    }
+
+    @Transactional
+    public int refreshAvailableTickets(Event event) {
+        int available = (int) seatRepository.countByEventAndStatus(event, SeatStatus.AVAILABLE);
+        event.setAvailableTickets(available);
+        eventRepository.save(event);
+        return available;
+    }
+
+    private String buildSeatNumber(int index) {
+        int row = (index - 1) / 10;
+        int seat = ((index - 1) % 10) + 1;
+        return String.valueOf((char) ('A' + row)) + seat;
+    }
+
+    private String buildCancellationMessage(Event event, Booking booking) {
+        String seatDetails = booking.getSeatNumbers() == null || booking.getSeatNumbers().isBlank()
+                ? "No seat numbers assigned"
+                : booking.getSeatNumbers();
+        return "Event cancelled: " + event.getName()
+                + " | Tickets booked: " + booking.getTickets()
+                + " (" + seatDetails + ")"
+                + " | Amount refunded: Rs. " + booking.getTotalAmount();
     }
 }

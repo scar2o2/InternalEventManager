@@ -23,7 +23,7 @@ export default function EventListPage() {
         </div>
         <div className="stats-panel">
           <span>{events.length} events</span>
-          <span>{auth.role === "USER" ? "Booking enabled" : "Booking disabled"}</span>
+          <span>{auth.role === "USER" ? "Dynamic pricing active" : "Admin review mode"}</span>
         </div>
       </div>
       {error ? <p className="error-text">{error}</p> : null}

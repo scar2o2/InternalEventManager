@@ -1,7 +1,9 @@
 package com.department.ticketsystem.controller;
 
+import com.department.ticketsystem.dto.SeatResponse;
 import com.department.ticketsystem.dto.EventResponse;
 import com.department.ticketsystem.service.EventService;
+import java.security.Principal;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,5 +28,10 @@ public class EventController {
     @GetMapping("/{id}")
     public EventResponse getEvent(@PathVariable Long id) {
         return eventService.getEvent(id);
+    }
+
+    @GetMapping("/{id}/seats")
+    public List<SeatResponse> getSeats(@PathVariable Long id, Principal principal) {
+        return eventService.getEventSeats(id, principal.getName());
     }
 }
